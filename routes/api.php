@@ -19,11 +19,26 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
 
     Route::prefix('admin')->middleware('role:admin')->group(function () {
+        Route::get('/users', [AdminController::class, 'getUsers']);
         Route::post('/users', [AdminController::class, 'createUser']);
+        Route::put('/users/{user}', [AdminController::class, 'updateUser']);
+        Route::delete('/users/{user}', [AdminController::class, 'deleteUser']);
+
+        Route::get('/program-studi', [AdminController::class, 'getProgramStudi']);
         Route::post('/program-studi', [AdminController::class, 'createProgramStudi']);
+
+        Route::get('/mata-kuliah', [AdminController::class, 'getMataKuliah']);
         Route::post('/mata-kuliah', [AdminController::class, 'createMataKuliah']);
+        Route::put('/mata-kuliah/{mata_kuliah}', [AdminController::class, 'updateMataKuliah']);
+        Route::delete('/mata-kuliah/{mata_kuliah}', [AdminController::class, 'deleteMataKuliah']);
+
+        Route::get('/kelas', [AdminController::class, 'getKelas']);
         Route::post('/kelas', [AdminController::class, 'createKelas']);
+        Route::put('/kelas/{kelas}', [AdminController::class, 'updateKelas']);
+        Route::delete('/kelas/{kelas}', [AdminController::class, 'deleteKelas']);
+
         Route::post('/enroll-mahasiswa', [AdminController::class, 'enrollMahasiswa']);
+        Route::get('/schedules', [AdminController::class, 'getSchedules']);
         Route::post('/schedules', [AdminController::class, 'createSchedule']);
         Route::get('/attendance-sessions', [AdminController::class, 'sessions']);
         Route::get('/attendance-records', [AdminController::class, 'attendanceRecords']);

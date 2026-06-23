@@ -17,7 +17,9 @@ class DemoDataSeeder extends Seeder
 {
     public function run(): void
     {
-        $prodi = ProgramStudi::firstOrCreate(['nama_prodi' => 'Teknik Informatika']);
+        $prodi = ProgramStudi::firstOrCreate(['nama_prodi' => 'Sistem Teknologi dan Informasi']);
+        ProgramStudi::firstOrCreate(['nama_prodi' => 'Bisnis Digital']);
+        ProgramStudi::firstOrCreate(['nama_prodi' => 'Kewirausahaan']);
 
         User::updateOrCreate(
             ['email' => 'admin@kampus.test'],
@@ -103,12 +105,12 @@ class DemoDataSeeder extends Seeder
         $schedule = Schedule::updateOrCreate(
             [
                 'kelas_id' => $kelas->id,
-                'lecturer_id' => $dosenUser->id,
-                'day_of_week' => 3,
+                'dosen_id' => $dosenPk,
+                'hari' => 3,
             ],
             [
-                'start_time' => '09:00',
-                'end_time' => '10:40',
+                'jam_mulai' => '09:00',
+                'jam_selesai' => '10:40',
             ]
         );
 

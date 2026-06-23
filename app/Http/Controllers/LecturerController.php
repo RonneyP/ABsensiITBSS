@@ -15,31 +15,34 @@ class LecturerController extends Controller
 {
     public function schedules(Request $request)
     {
-        $userId = $request->user()->id;
+        $dosen = $request->user()->dosen;
+        if (!$dosen) {
+            return response()->json(['schedules' => []]);
+        }
         
         $dayFilter = $request->query('day');
         
-        $baseQuery = Schedule::where('lecturer_id', $userId);
+        $baseQuery = Schedule::where('dosen_id', $dosen->id);
         
         if ($dayFilter && is_numeric($dayFilter) && $dayFilter >= 1 && $dayFilter <= 7) {
-            $baseQuery->where('day_of_week', $dayFilter);
+            $baseQuery->where('hari', $dayFilter);
         }
         
-        $uniquePatterns = $baseQuery->select('kelas_id', 'day_of_week', 'start_time', 'end_time')
+        $uniquePatterns = $baseQuery->select('kelas_id', 'hari', 'jam_mulai', 'jam_selesai')
             ->distinct()
-            ->orderBy('day_of_week')
-            ->orderBy('start_time')
+            ->orderBy('hari')
+            ->orderBy('jam_mulai')
             ->get();
         
         // Load relationships for each unique pattern
         $schedules = collect();
         foreach ($uniquePatterns as $pattern) {
             $schedule = Schedule::with(['kelas.mataKuliah'])
-                ->where('lecturer_id', $userId)
+                ->where('dosen_id', $dosen->id)
                 ->where('kelas_id', $pattern->kelas_id)
-                ->where('day_of_week', $pattern->day_of_week)
-                ->where('start_time', $pattern->start_time)
-                ->where('end_time', $pattern->end_time)
+                ->where('hari', $pattern->hari)
+                ->where('jam_mulai', $pattern->jam_mulai)
+                ->where('jam_selesai', $pattern->jam_selesai)
                 ->first();
             
             if ($schedule) {

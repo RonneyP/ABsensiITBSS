@@ -12,7 +12,7 @@ return new class extends Migration
             $table->id();
             $table->foreignId('classroom_id')->constrained('classrooms')->cascadeOnDelete();
             $table->foreignId('lecturer_id')->constrained('users')->cascadeOnDelete();
-            $table->foreignId('schedule_id')->nullable()->constrained('schedules')->nullOnDelete();
+            $table->foreignId('schedule_id')->nullable()->constrained('jadwals')->nullOnDelete();
             $table->date('session_date');
             $table->dateTime('start_at');
             $table->dateTime('end_at')->nullable();

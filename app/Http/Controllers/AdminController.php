@@ -83,11 +83,11 @@ class AdminController extends Controller
         ];
 
         // Check for schedule conflicts with existing classes
-        $existingSchedule = Schedule::where('lecturer_id', $userDosen->id)
-            ->where('day_of_week', $payload['hari'])
+        $existingSchedule = Schedule::where('dosen_id', $dosen->id)
+            ->where('hari', $payload['hari'])
             ->where(function($query) use ($payload) {
-                $query->where('start_time', '<', $payload['jam_selesai'])
-                      ->where('end_time', '>', $payload['jam_mulai']);
+                $query->where('jam_mulai', '<', $payload['jam_selesai'])
+                      ->where('jam_selesai', '>', $payload['jam_mulai']);
             })
             ->first();
 
@@ -99,9 +99,9 @@ class AdminController extends Controller
                     'existing_kelas' => [
                         'kode_kelas' => $conflictingClass->kode_kelas,
                         'nama_kelas' => $conflictingClass->nama_kelas,
-                        'hari' => $existingSchedule->day_of_week,
-                        'jam_mulai' => $existingSchedule->start_time,
-                        'jam_selesai' => $existingSchedule->end_time
+                        'hari' => $existingSchedule->hari,
+                        'jam_mulai' => $existingSchedule->jam_mulai,
+                        'jam_selesai' => $existingSchedule->jam_selesai
                     ],
                     'requested_time' => [
                         'hari' => $payload['hari'],
@@ -117,10 +117,10 @@ class AdminController extends Controller
         // Create 1 weekly schedule pattern for this class
         $schedule = Schedule::create([
             'kelas_id' => $kelas->id,
-            'lecturer_id' => $userDosen->id,
-            'day_of_week' => $payload['hari'],
-            'start_time' => $payload['jam_mulai'],
-            'end_time' => $payload['jam_selesai'],
+            'dosen_id' => $dosen->id,
+            'hari' => $payload['hari'],
+            'jam_mulai' => $payload['jam_mulai'],
+            'jam_selesai' => $payload['jam_selesai'],
         ]);
 
         return response()->json([
@@ -187,6 +187,128 @@ class AdminController extends Controller
     {
         return response()->json(
             Absensi::with(['sesi.kelas', 'mahasiswa.user', 'overrider'])->latest()->get()
+        );
+    }
+
+    public function getUsers(Request $request)
+    {
+        $role = $request->query('role');
+        $query = User::query();
+        if ($role) {
+            $query->where('role', $role);
+        }
+        return response()->json($query->latest()->get());
+    }
+
+    public function updateUser(Request $request, User $user)
+    {
+        $payload = $request->validate([
+            'nama' => ['sometimes', 'required', 'string', 'max:255'],
+            'username' => ['sometimes', 'required', 'string', 'max:50', 'alpha_dash', Rule::unique('users', 'username')->ignore($user->id)],
+            'email' => ['sometimes', 'required', 'email', Rule::unique('users', 'email')->ignore($user->id)],
+            'password' => ['sometimes', 'nullable', 'string', 'min:8'],
+            'role' => ['sometimes', 'required', Rule::in(['admin', 'dosen', 'mahasiswa'])],
+        ]);
+
+        if (isset($payload['password']) && !empty($payload['password'])) {
+            $payload['password'] = bcrypt($payload['password']);
+        } else {
+            unset($payload['password']);
+        }
+
+        $user->update($payload);
+        return response()->json($user);
+    }
+
+    public function deleteUser(User $user)
+    {
+        $user->delete();
+        return response()->json(['message' => 'User berhasil dihapus']);
+    }
+
+    public function getProgramStudi()
+    {
+        return response()->json(ProgramStudi::all());
+    }
+
+    public function getMataKuliah()
+    {
+        return response()->json(MataKuliah::with('programStudi')->latest()->get());
+    }
+
+    public function updateMataKuliah(Request $request, MataKuliah $mata_kuliah)
+    {
+        $payload = $request->validate([
+            'kode_mk' => ['sometimes', 'required', 'string', 'max:20', Rule::unique('mata_kuliahs', 'kode_mk')->ignore($mata_kuliah->id)],
+            'nama_mk' => ['sometimes', 'required', 'string', 'max:255'],
+            'sks' => ['sometimes', 'required', 'integer', 'min:1', 'max:24'],
+            'prodi_id' => ['sometimes', 'required', 'exists:program_studis,id'],
+        ]);
+
+        $mata_kuliah->update($payload);
+        return response()->json($mata_kuliah);
+    }
+
+    public function deleteMataKuliah(MataKuliah $mata_kuliah)
+    {
+        $mata_kuliah->delete();
+        return response()->json(['message' => 'Mata Kuliah berhasil dihapus']);
+    }
+
+    public function getKelas()
+    {
+        return response()->json(Kelas::with(['mataKuliah', 'dosen.user'])->latest()->get());
+    }
+
+    public function updateKelas(Request $request, Kelas $kelas)
+    {
+        $payload = $request->validate([
+            'mk_id' => ['sometimes', 'required', 'exists:mata_kuliahs,id'],
+            'dosen_id' => ['sometimes', 'required', 'exists:users,id'],
+            'kode_kelas' => ['sometimes', 'required', 'string', 'max:50'],
+            'nama_kelas' => ['sometimes', 'required', 'string', 'max:150'],
+            'hari' => ['sometimes', 'required', 'integer', 'between:1,7'],
+            'jam_mulai' => ['sometimes', 'required', 'date_format:H:i'],
+            'jam_selesai' => ['sometimes', 'required', 'date_format:H:i', 'after:jam_mulai'],
+        ]);
+
+        if (isset($payload['dosen_id'])) {
+            $userDosen = User::findOrFail($payload['dosen_id']);
+            if ($userDosen->role !== 'dosen') {
+                return response()->json(['message' => 'User bukan dosen.'], 422);
+            }
+            $dosen = $userDosen->dosen;
+            if (!$dosen) {
+                return response()->json(['message' => 'Profil dosen tidak ditemukan.'], 422);
+            }
+            $payload['dosen_id'] = $dosen->id;
+        }
+
+        $kelas->update($payload);
+
+        $sched = Schedule::where('kelas_id', $kelas->id)->first();
+        if ($sched) {
+            $sched->update([
+                'hari' => $payload['hari'] ?? $sched->hari,
+                'jam_mulai' => $payload['jam_mulai'] ?? $sched->jam_mulai,
+                'jam_selesai' => $payload['jam_selesai'] ?? $sched->jam_selesai,
+                'dosen_id' => isset($payload['dosen_id']) ? $payload['dosen_id'] : $sched->dosen_id,
+            ]);
+        }
+
+        return response()->json($kelas);
+    }
+
+    public function deleteKelas(Kelas $kelas)
+    {
+        $kelas->delete();
+        return response()->json(['message' => 'Kelas berhasil dihapus']);
+    }
+
+    public function getSchedules()
+    {
+        return response()->json(
+            Schedule::with(['kelas.mataKuliah', 'dosen.user'])->latest()->get()
         );
     }
 }
